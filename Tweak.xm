@@ -17,6 +17,7 @@
 #import <sys/stat.h>
 #import <unistd.h>
 #import <signal.h>
+#import <libproc.h>
 
 // 共享设置文件：mobile（App）写入，_locationd（tweak）读取，需 world-readable
 static NSString *const kWLOCSettingsPath = @"/var/mobile/Library/Preferences/com.amorcool.wloc.plist";
@@ -24,6 +25,7 @@ static NSString *const kWLOCRestartNotify = @"com.amorcool.wloc/restart";
 static NSString *const kWLOCReloadNotify  = @"com.amorcool.wloc/reload";
 static NSString *const kWLOCStatusPath    = @"/var/mobile/Library/Preferences/com.amorcool.wloc.status.plist";
 static NSString *const kWLOCQueryNotify   = @"com.amorcool.wloc/query";
+static NSString *const kWLOCAppBundleID   = @"com.amorcool.wlocapp";
 
 static BOOL   gEnabled = NO;
 static double gLat = 0.0;
@@ -54,11 +56,43 @@ static void WLOCEnsureLoaded(void) {
 	}
 }
 
+// 枚举进程，找到 locationd 的 PID（不依赖注入 locationd 本身）。
+// 在“守护进程注入被环境限制”的情况下，App 内运行的 dylib 也能用它报告真实的
+// locationd 运行状态与 PID，状态卡片因此照样可用。
+static int WLOCFindLocationdPid(void) {
+	int bufsize = proc_listpids(PROC_ALL_PIDS, 0, NULL, 0);
+	if (bufsize <= 0) return -1;
+	NSMutableData *data = [NSMutableData dataWithLength:(NSUInteger)bufsize];
+	int *pids = (int *)[data mutableBytes];
+	int n = proc_listpids(PROC_ALL_PIDS, 0, pids, bufsize);
+	for (int i = 0; i < n; i++) {
+		int pid = pids[i];
+		if (pid <= 0) continue;
+		char name[256];
+		if (proc_name(pid, name, sizeof(name)) > 0 && strcmp(name, "locationd") == 0) {
+			return pid;
+		}
+	}
+	return -1;
+}
+
 static void WLOCWriteStatus(void) {
 	@autoreleasepool {
+		// 只有两种情况需要写状态：① 本进程就是 locationd（daemon 注入可用时）
+		// ② 本进程是 WLOCApp（daemon 注入不可用时，由 App 内 dylib 探测后报告）。
+		char selfName[256] = {0};
+		proc_name(getpid(), selfName, sizeof(selfName));
+		BOOL inLocationd = (strcmp(selfName, "locationd") == 0);
+		BOOL inApp       = [[[NSBundle mainBundle] bundleIdentifier] isEqualToString:kWLOCAppBundleID];
+		if (!inLocationd && !inApp) return;
+
+		int locPid = inLocationd ? (int)getpid() : WLOCFindLocationdPid();
 		NSDictionary *d = @{
-			@"pid": @(getpid()),
-			@"updated_at": @(CFAbsoluteTimeGetCurrent()),
+			@"locationd_running": @(locPid > 0),
+			@"locationd_pid":     @(locPid),
+			@"tweak_pid":         @(getpid()),
+			@"source":            inLocationd ? @"daemon" : @"probe",
+			@"updated_at":        @(CFAbsoluteTimeGetCurrent()),
 		};
 		[d writeToFile:kWLOCStatusPath atomically:YES];
 		chmod([kWLOCStatusPath UTF8String], 0644);

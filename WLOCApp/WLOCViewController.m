@@ -265,7 +265,7 @@ static NSString *const kWLOCQueryNotify   = @"com.amorcool.wloc/query";
 	self.locStateLabel.text = @"状态: 查询中...";
 	self.locPidLabel.text = @"PID: --";
 	[self postNotify:kWLOCQueryNotify];
-	// 等 tweak（运行在 locationd 进程内）收到通知、写完状态文件后再读
+	// 等 tweak（运行在 App 进程内的 dylib 实例）探测 locationd 并写完状态文件后再读
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.7 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 		[self readLocationdStatus];
 	});
@@ -274,17 +274,22 @@ static NSString *const kWLOCQueryNotify   = @"com.amorcool.wloc/query";
 - (void)readLocationdStatus {
 	NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:kWLOCStatusPath];
 	if (!d) {
-		self.locStateLabel.text = @"状态: 未运行";
+		self.locStateLabel.text = @"状态: 未知（tweak 未注入 App）";
 		self.locPidLabel.text = @"PID: --";
 		return;
 	}
 	NSNumber *updated = d[@"updated_at"];
-	NSNumber *pid = d[@"pid"];
-	if (!updated || !pid || CFAbsoluteTimeGetCurrent() - [updated doubleValue] > 5.0) {
-		self.locStateLabel.text = @"状态: 未运行";
+	NSNumber *running = d[@"locationd_running"];
+	NSNumber *pid = d[@"locationd_pid"];
+	if (!updated || !running || !pid ||
+		CFAbsoluteTimeGetCurrent() - [updated doubleValue] > 5.0) {
+		self.locStateLabel.text = @"状态: 未知";
+		self.locPidLabel.text = @"PID: --";
+	} else if (![running boolValue]) {
+		self.locStateLabel.text = @"状态: locationd 未运行";
 		self.locPidLabel.text = @"PID: --";
 	} else {
-		self.locStateLabel.text = @"状态: 运行中";
+		self.locStateLabel.text = @"状态: locationd 运行中";
 		self.locPidLabel.text = [NSString stringWithFormat:@"PID: %@", pid];
 	}
 }
