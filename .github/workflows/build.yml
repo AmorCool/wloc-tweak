@@ -1,0 +1,46 @@
+name: Build Rootless Deb
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      THEOS: ${{ github.workspace }}/theos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clone Theos
+        run: git clone --recursive https://github.com/theos/theos.git "$THEOS"
+
+      - name: Install tools
+        run: |
+          brew install ldid dpkg make
+          echo "$(brew --prefix make)/libexec/gnubin:$PATH" >> "$GITHUB_ENV"
+
+      - name: Download iOS SDK
+        run: |
+          mkdir -p "$THEOS/sdks"
+          curl -fsSL https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz -o sdk.tar.xz
+          tar -xvf sdk.tar.xz -C "$THEOS/sdks"
+
+      - name: Build package
+        run: make package FINALPACKAGE=1 THEOS_NO_FAKEROOT=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wloc-deb
+          path: packages/*.deb
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/*.deb
+          generate_release_notes: true

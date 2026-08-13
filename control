@@ -1,0 +1,9 @@
+Package: com.amorcool.wloc
+Name: WLOC
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Rootless 系统级位置模拟（注入 locationd）+ 配套 App
+Maintainer: AmorCool
+Author: AmorCool
+Section: Tweaks
+Depends: ellekit, firmware (>= 15.0)
