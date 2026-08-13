@@ -1,6 +1,0 @@
-#!/bin/bash
-# Refresh the SpringBoard icon cache so the newly installed
-# /Applications/WLOCApp.app shows up on the home screen.
-uicache >/dev/null 2>&1
-sbreload >/dev/null 2>&1
-exit 0
