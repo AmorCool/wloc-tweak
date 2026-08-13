@@ -14,6 +14,8 @@
 #import <CoreLocation/CoreLocation.h>
 #import <Foundation/Foundation.h>
 #import <sys/types.h>
+#import <sys/stat.h>
+#import <unistd.h>
 #import <signal.h>
 
 // 共享设置文件：mobile（App）写入，_locationd（tweak）读取，需 world-readable
