@@ -17,7 +17,15 @@
 #import <sys/stat.h>
 #import <unistd.h>
 #import <signal.h>
-#import <libproc.h>
+
+// libproc.h 不在公开 SDK 里，但 proc_listpids / proc_name 本就在 libSystem 中，
+// 这里手写声明即可（链接器会从 libSystem 解析符号），避免依赖私有头。
+#include <sys/types.h>
+extern int proc_listpids(uint32_t type, uint32_t typeinfo, void *buffer, int buffersize);
+extern int proc_name(int pid, void *buffer, uint32_t buffersize);
+#ifndef PROC_ALL_PIDS
+#define PROC_ALL_PIDS 1
+#endif
 
 // 共享设置文件：mobile（App）写入，_locationd（tweak）读取，需 world-readable
 static NSString *const kWLOCSettingsPath = @"/var/mobile/Library/Preferences/com.amorcool.wloc.plist";
