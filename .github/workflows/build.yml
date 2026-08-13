@@ -20,8 +20,9 @@ jobs:
 
       - name: Install tools
         run: |
-          brew install ldid dpkg make
-          echo "$(brew --prefix make)/libexec/gnubin:$PATH" >> "$GITHUB_ENV"
+          brew install ldid dpkg make xz
+          MAKE_BIN="$(brew --prefix make | tr -d '[:space:]')/libexec/gnubin"
+          echo "PATH=$MAKE_BIN:$PATH" >> "$GITHUB_ENV"
 
       - name: Download iOS SDK
         run: |
