@@ -7,7 +7,7 @@ include $(THEOS)/makefiles/common.mk
 APPLICATION_NAME = WLOCApp
 WLOCApp_FILES = main.m WLOCAppDelegate.m WLOCViewController.m WLOCMapPicker.m
 WLOCApp_FRAMEWORKS = UIKit WebKit
-WLOCApp_INFOPLIST_FILE = Info.plist
+WLOCApp_RESOURCES = Icon.png Icon@2x.png Icon@3x.png
 WLOCApp_INSTALL_PATH = /Applications
 WLOCApp_CFLAGS = -fobjc-arc
 
