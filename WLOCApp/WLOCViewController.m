@@ -1,5 +1,6 @@
 #import "WLOCViewController.h"
 #import <notify.h>
+#import <sys/stat.h>
 
 static NSString *const kWLOCSettingsPath = @"/var/mobile/Library/Preferences/com.amorcool.wloc.plist";
 static NSString *const kWLOCRestartNotify = @"com.amorcool.wloc/restart";
