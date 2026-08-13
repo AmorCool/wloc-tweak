@@ -20,6 +20,8 @@
 static NSString *const kWLOCSettingsPath = @"/var/mobile/Library/Preferences/com.amorcool.wloc.plist";
 static NSString *const kWLOCRestartNotify = @"com.amorcool.wloc/restart";
 static NSString *const kWLOCReloadNotify  = @"com.amorcool.wloc/reload";
+static NSString *const kWLOCStatusPath    = @"/var/mobile/Library/Preferences/com.amorcool.wloc.status.plist";
+static NSString *const kWLOCQueryNotify   = @"com.amorcool.wloc/query";
 
 static BOOL   gEnabled = NO;
 static double gLat = 0.0;
@@ -47,6 +49,17 @@ static void WLOCLoadSettings(void) {
 static void WLOCEnsureLoaded(void) {
 	if (CFAbsoluteTimeGetCurrent() - gLastLoad > 0.5) {
 		WLOCLoadSettings();
+	}
+}
+
+static void WLOCWriteStatus(void) {
+	@autoreleasepool {
+		NSDictionary *d = @{
+			@"pid": @(getpid()),
+			@"updated_at": @(CFAbsoluteTimeGetCurrent()),
+		};
+		[d writeToFile:kWLOCStatusPath atomically:YES];
+		chmod([kWLOCStatusPath UTF8String], 0644);
 	}
 }
 
@@ -120,11 +133,14 @@ static void WLOCDarwinNotify(CFNotificationCenterRef center, void *observer, CFS
 		kill(getpid(), SIGKILL);
 	} else if ([n isEqualToString:kWLOCReloadNotify]) {
 		WLOCLoadSettings();
+	} else if ([n isEqualToString:kWLOCQueryNotify]) {
+		WLOCWriteStatus();
 	}
 }
 
 %ctor {
 	WLOCEnsureLoaded();
+	WLOCWriteStatus();
 	CFNotificationCenterAddObserver(
 		CFNotificationCenterGetDarwinNotifyCenter(),
 		NULL,
@@ -137,6 +153,13 @@ static void WLOCDarwinNotify(CFNotificationCenterRef center, void *observer, CFS
 		NULL,
 		WLOCDarwinNotify,
 		(__bridge CFStringRef)kWLOCReloadNotify,
+		NULL,
+		CFNotificationSuspensionBehaviorDeliverImmediately);
+	CFNotificationCenterAddObserver(
+		CFNotificationCenterGetDarwinNotifyCenter(),
+		NULL,
+		WLOCDarwinNotify,
+		(__bridge CFStringRef)kWLOCQueryNotify,
 		NULL,
 		CFNotificationSuspensionBehaviorDeliverImmediately);
 	%init;

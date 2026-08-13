@@ -37,8 +37,11 @@
 		[self.webView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
 	]];
 
+	// baseURL 指向 .app 包根目录，使 leaflet.min.css / leaflet.min.js（已打包到
+	// layout/Applications/WLOCApp.app/）能以相对路径被 WKWebView 加载，
+	// 完全摆脱对 unpkg 等 CDN 的依赖（在国内/受限制网络下也能出图）。
 	NSString *html = [self htmlWithLat:self.initialLatitude lon:self.initialLongitude];
-	[self.webView loadHTMLString:html baseURL:nil];
+	[self.webView loadHTMLString:html baseURL:[[NSBundle mainBundle] bundleURL]];
 }
 
 - (void)userContentController:(WKUserContentController *)userContentController
@@ -63,22 +66,22 @@
 - (NSString *)htmlWithLat:(double)lat lon:(double)lon {
 	return [NSString stringWithFormat:
 @"<!doctype html><html><head><meta charset='utf-8'>"
-"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>"
-"<style>html,body{height:100%%;margin:0;font-family:system-ui,-apple-system,sans-serif}"
-"#map{height:100%%;width:100%%}</style></head>"
-"<body><div id='map'></div>"
-"<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>"
-"<script>"
-"var lat=%f,lng=%f;"
-"var map=L.map('map').setView([lat,lng],15);"
-"L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(map);"
-"var marker=L.marker([lat,lng],{draggable:true}).addTo(map);"
-"function emit(){var p=marker.getLatLng();window.webkit.messageHandlers.wloc.postMessage({lat:p.lat,lon:p.lng});}"
-"marker.on('dragend',emit);"
-"map.on('click',function(e){marker.setLatLng(e.latlng);emit();});"
-"emit();"
-"</script></body></html>", lat, lon];
+@"<meta name='viewport' content='width=device-width,initial-scale=1,user-scalable=no'>"
+@"<link rel='stylesheet' href='leaflet.min.css'>"
+@"<style>html,body{height:100%%;margin:0;font-family:system-ui,-apple-system,sans-serif}"
+@"#map{height:100%%;width:100%%}</style></head>"
+@"<body><div id='map'></div>"
+@"<script src='leaflet.min.js'></script>"
+@"<script>"
+@"var lat=%f,lng=%f;"
+@"var map=L.map('map').setView([lat,lng],15);"
+@"L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',{subdomains:['1','2','3','4'],maxZoom:18,attribution:'&copy; AutoNavi'}).addTo(map);"
+@"var marker=L.marker([lat,lng],{draggable:true}).addTo(map);"
+@"function emit(){var p=marker.getLatLng();window.webkit.messageHandlers.wloc.postMessage({lat:p.lat,lon:p.lng});}"
+@"marker.on('dragend',emit);"
+@"map.on('click',function(e){marker.setLatLng(e.latlng);emit();});"
+@"emit();"
+@"</script></body></html>", lat, lon];
 }
 
 @end

@@ -5,12 +5,16 @@
 static NSString *const kWLOCSettingsPath = @"/var/mobile/Library/Preferences/com.amorcool.wloc.plist";
 static NSString *const kWLOCRestartNotify = @"com.amorcool.wloc/restart";
 static NSString *const kWLOCReloadNotify  = @"com.amorcool.wloc/reload";
+static NSString *const kWLOCStatusPath    = @"/var/mobile/Library/Preferences/com.amorcool.wloc.status.plist";
+static NSString *const kWLOCQueryNotify   = @"com.amorcool.wloc/query";
 
 @interface WLOCViewController ()
 @property (nonatomic, strong) UISwitch *enableSwitch;
 @property (nonatomic, strong) UILabel *coordLabel;
 @property (nonatomic, strong) UITextField *accuracyField;
 @property (nonatomic, strong) UILabel *statusLabel;
+@property (nonatomic, strong) UILabel *locStateLabel;
+@property (nonatomic, strong) UILabel *locPidLabel;
 @property (nonatomic, assign) double latitude;
 @property (nonatomic, assign) double longitude;
 @property (nonatomic, assign) double accuracy;
@@ -28,6 +32,7 @@ static NSString *const kWLOCReloadNotify  = @"com.amorcool.wloc/reload";
 	[self loadSettings];
 	[self buildUI];
 	[self refreshUI];
+	[self refreshLocationd];
 }
 
 #pragma mark - Settings
@@ -156,6 +161,29 @@ static NSString *const kWLOCReloadNotify  = @"com.amorcool.wloc/reload";
 		[c addArrangedSubview:restart];
 	}]];
 
+	// locationd 状态卡片
+	[stack addArrangedSubview:[self cardWithContent:^(UIStackView *c){
+		UILabel *title = [UILabel new];
+		title.text = @"locationd 状态";
+		title.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
+		[c addArrangedSubview:title];
+		self.locStateLabel = [UILabel new];
+		self.locStateLabel.font = [UIFont monospacedDigitSystemFontOfSize:15 weight:UIFontWeightRegular];
+		self.locStateLabel.text = @"状态: --";
+		self.locStateLabel.numberOfLines = 0;
+		[c addArrangedSubview:self.locStateLabel];
+		self.locPidLabel = [UILabel new];
+		self.locPidLabel.font = [UIFont monospacedDigitSystemFontOfSize:15 weight:UIFontWeightRegular];
+		self.locPidLabel.text = @"PID: --";
+		self.locPidLabel.numberOfLines = 0;
+		[c addArrangedSubview:self.locPidLabel];
+		UIButton *refresh = [UIButton buttonWithType:UIButtonTypeSystem];
+		[refresh setTitle:@"刷新查询" forState:UIControlStateNormal];
+		refresh.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
+		[refresh addTarget:self action:@selector(refreshLocationd) forControlEvents:UIControlEventTouchUpInside];
+		[c addArrangedSubview:refresh];
+	}]];
+
 	self.statusLabel = [UILabel new];
 	self.statusLabel.font = [UIFont systemFontOfSize:12];
 	self.statusLabel.textColor = [UIColor tertiaryLabelColor];
@@ -230,6 +258,35 @@ static NSString *const kWLOCReloadNotify  = @"com.amorcool.wloc/reload";
 	[self persist];
 	[self postNotify:kWLOCRestartNotify];
 	self.statusLabel.text = @"已向 locationd 发送重启信号，守护进程将停止并重启以清空内存缓存。";
+	[self refreshLocationd];
+}
+
+- (void)refreshLocationd {
+	self.locStateLabel.text = @"状态: 查询中...";
+	self.locPidLabel.text = @"PID: --";
+	[self postNotify:kWLOCQueryNotify];
+	// 等 tweak（运行在 locationd 进程内）收到通知、写完状态文件后再读
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.7 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self readLocationdStatus];
+	});
+}
+
+- (void)readLocationdStatus {
+	NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:kWLOCStatusPath];
+	if (!d) {
+		self.locStateLabel.text = @"状态: 未运行";
+		self.locPidLabel.text = @"PID: --";
+		return;
+	}
+	NSNumber *updated = d[@"updated_at"];
+	NSNumber *pid = d[@"pid"];
+	if (!updated || !pid || CFAbsoluteTimeGetCurrent() - [updated doubleValue] > 5.0) {
+		self.locStateLabel.text = @"状态: 未运行";
+		self.locPidLabel.text = @"PID: --";
+	} else {
+		self.locStateLabel.text = @"状态: 运行中";
+		self.locPidLabel.text = [NSString stringWithFormat:@"PID: %@", pid];
+	}
 }
 
 #pragma mark - WLOCMapPickerDelegate
